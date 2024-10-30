@@ -29,6 +29,9 @@ This application requires the following Python libraries:
    ```bash
    git clone <repository-url>
    cd your-object-detection-project
-2.run the following command in your terminal :- streamlit run app.py
-    
+2. Run the Streamlit application using the following command in your terminal:
+
+   ```bash
+   streamlit run app.py
+
   
