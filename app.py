@@ -3,8 +3,18 @@ import cv2
 import numpy as np
 import tempfile
 import time
+import os
 
+# Load YOLO model with downloaded weights
 def load_yolo_model(config_path, weights_path, classes_path):
+    # Verify file existence
+    if not os.path.exists(weights_path):
+        raise FileNotFoundError(f"Weights file not found at: {weights_path}")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found at: {config_path}")
+    if not os.path.exists(classes_path):
+        raise FileNotFoundError(f"Classes file not found at: {classes_path}")
+    
     # Load class names
     with open(classes_path, 'r') as f:
         classes = [line.strip() for line in f.readlines()]
@@ -13,7 +23,10 @@ def load_yolo_model(config_path, weights_path, classes_path):
     colors = np.random.uniform(0, 255, size=(len(classes), 3))
     
     # Load YOLO model
-    net = cv2.dnn.readNet(weights_path, config_path)
+    try:
+        net = cv2.dnn.readNet(weights_path, config_path)
+    except cv2.error as e:
+        raise Exception(f"Error loading model: {str(e)}. Please verify your weight and config files.")
     
     return net, classes, colors
 
@@ -31,7 +44,7 @@ def detect_objects(image, net, classes, colors):
     scale = 0.00392
     
     # Create blob from image
-    blob = cv2.dnn.blobFromImage(image, scale, (416,416), (0,0,0), True, crop=False)
+    blob = cv2.dnn.blobFromImage(image, scale, (416, 416), (0, 0, 0), True, crop=False)
     net.setInput(blob)
     outs = net.forward(get_output_layers(net))
     
@@ -48,7 +61,7 @@ def detect_objects(image, net, classes, colors):
             scores = detection[5:]
             class_id = np.argmax(scores)
             confidence = scores[class_id]
-            if confidence > 0.5:
+            if confidence > conf_threshold:
                 center_x = int(detection[0] * Width)
                 center_y = int(detection[1] * Height)
                 w = int(detection[2] * Width)
@@ -79,27 +92,47 @@ def detect_objects(image, net, classes, colors):
         color = colors[class_ids[i]]
         
         # Draw rectangle and label
-        cv2.rectangle(image, (x,y), (x+w,y+h), color, 2)
-        cv2.putText(image, f"{label} {confidences[i]:.2f}", (x-10,y-10), 
+        cv2.rectangle(image, (x, y), (x + w, y + h), color, 2)
+        cv2.putText(image, f"{label} {confidences[i]:.2f}", (x - 10, y - 10), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
     
     return image
 
+# Main function for Streamlit app
 def main():
     st.title("YOLO Object Detection App")
     
+    # Determine the base directory (where the script is running)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
     # Sidebar for model configuration
     st.sidebar.title("Configuration")
-    config_path = st.sidebar.text_input("Config Path", "yolov3.cfg")
-    weights_path = st.sidebar.text_input("Weights Path", "yolov3.weights")
-    classes_path = st.sidebar.text_input("Classes Path", "yolov3.txt")
+    
+    # Default paths relative to the script location
+    default_config = os.path.join(base_dir, "yolov3.cfg")
+    default_weights = os.path.join(base_dir, "assets", "yolov3.weights")
+    default_classes = os.path.join(base_dir, "yolov3.txt")
+    
+    config_path = st.sidebar.text_input("Config Path", default_config)
+    weights_path = st.sidebar.text_input("Weights Path", default_weights)
+    classes_path = st.sidebar.text_input("Classes Path", default_classes)
+    
+    # Add download instructions if files are missing
+    if not os.path.exists(weights_path):
+        st.sidebar.error("⚠️ YOLOv3 weights file not found!")
+        st.sidebar.markdown("""
+        Please download YOLOv3 weights:
+        1. Download from: [YOLOv3 Weights](https://pjreddie.com/media/files/yolov3.weights)
+        2. Place in the 'assets' folder
+        """)
+        return
     
     # Load YOLO model
     try:
         net, classes, colors = load_yolo_model(config_path, weights_path, classes_path)
-        st.sidebar.success("Model loaded successfully!")
+        st.sidebar.success("✅ Model loaded successfully!")
     except Exception as e:
-        st.sidebar.error(f"Error loading model: {str(e)}")
+        st.sidebar.error(f"❌ Error: {str(e)}")
         return
     
     # Mode selection
@@ -109,11 +142,11 @@ def main():
         uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
         
         if uploaded_file is not None:
-            # Save uploaded file to temp location
+            # Save uploaded file to a temporary location
             tfile = tempfile.NamedTemporaryFile(delete=False) 
             tfile.write(uploaded_file.read())
             
-            # Read and process image
+            # Read and process the image
             image = cv2.imread(tfile.name)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             
@@ -121,13 +154,13 @@ def main():
             processed_image = detect_objects(image.copy(), net, classes, colors)
             
             # Display results
-            st.image(processed_image, caption='Processed Image',  use_container_width=True)
+            st.image(processed_image, caption='Processed Image', use_container_width=True)
     
     else:  # Webcam mode
         st.write("Webcam Object Detection")
         run = st.checkbox('Start/Stop')
         
-        FRAME_WINDOW = st.image([])
+        FRAME_WINDOW = st.image([])  # Streamlit component to display the frame
         camera = cv2.VideoCapture(0)
         
         while run:
