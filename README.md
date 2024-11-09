@@ -25,8 +25,8 @@ Before running this application, make sure you have the following:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/yolo-object-detection-app.git
-cd yolo-object-detection-app
+git clone https://github.com/Rugvedrc/Object_Detection.git
+cd Object_Detection
 ```
 
 2. Install the required packages:
@@ -58,7 +58,7 @@ streamlit run app.py
 ## Project Structure
 
 ```
-yolo-object-detection-app/
+Object_Detection/
 │
 ├── app.py                 # Main application file
 ├── requirements.txt       # Python dependencies
